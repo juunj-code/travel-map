@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>여행 지도</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+  :root{--accent:#2563eb;--line:#e5e7eb;--muted:#6b7280}
+  body{margin:0;font:15px system-ui,sans-serif;display:flex;flex-direction:column;height:100dvh;background:#fff}
+  header{display:flex;gap:6px;padding:8px;align-items:center;overflow-x:auto}
+  button{font:inherit;padding:6px 12px;border:1px solid #ccc;border-radius:16px;background:#fff;white-space:nowrap;cursor:pointer}
+  button.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+  #editBtn{margin-left:auto}
+  #map{flex:1;min-height:40dvh}
+  #panel{max-height:45dvh;overflow-y:auto;padding:8px 12px;border-top:1px solid var(--line)}
+  .stop{display:flex;gap:8px;align-items:flex-start;padding:6px 0;cursor:pointer}
+  .num{flex:none;background:var(--accent);color:#fff;border-radius:50%;width:22px;height:22px;line-height:22px;text-align:center;font-size:13px;font-weight:bold}
+  .memo{color:var(--muted);font-size:13px}
+  .leg{margin:0 0 0 30px;padding:2px 0 2px 10px;border-left:2px dashed var(--line);font-size:13px;color:var(--muted)}
+  .leg a{margin-left:8px}
+  .pin{background:var(--accent);color:#fff;border-radius:50%;width:24px;height:24px;line-height:24px;text-align:center;font-weight:bold;border:2px solid #fff;box-shadow:0 1px 3px #0005}
+  .row{display:flex;gap:4px;flex-wrap:wrap;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)}
+  .row input,.row select,.bar input{font:inherit;padding:4px 6px;border:1px solid #ccc;border-radius:6px}
+  .row input[name=name]{flex:1;min-width:8em}
+  .row input[name=memo]{flex-basis:100%}
+  .row button,.bar button{padding:4px 10px}
+  .bar{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:6px 0}
+  .bar input[type=search]{flex:1;min-width:10em}
+  #results button{display:block;width:100%;text-align:left;border-radius:6px;margin:2px 0}
+  .hint{color:var(--muted);font-size:13px}
+</style>
+</head>
+<body>
+<header><nav id="days" style="display:contents"></nav><button id="editBtn">✏️ 편집</button></header>
+<div id="map"></div>
+<section id="panel"></section>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+const STORE_KEY = 'travel-plan-tokyo-2026-10';
+const MODES = { transit: '🚇 대중교통', walk: '🚶 도보', car: '🚗 자동차' };
+const OSRM = { walk: 'routed-foot', car: 'routed-car' };
+const KAKAO = { transit: 'traffic', walk: 'walk', car: 'car' };
+const APPLE = { transit: 'r', walk: 'w', car: 'd' };
+const COLORS = { transit: '#16a34a', walk: '#ea580c', car: '#2563eb' };
+// mode = 이전 장소에서 이 장소로 오는 이동수단
+const SAMPLE = [
+  { day: '10/17 토 · 신주쿠·가와고에', stops: [
+    { time: '10:45', name: '하네다공항 3터미널', lat: 35.54503, lng: 139.76704, memo: '게이큐선 → 시나가와 → 야마노테선 → 신주쿠' },
+    { time: '12:30', name: '신주쿠 호텔 (짐 맡기기)', lat: 35.6945, lng: 139.6995, memo: '📍대략 위치 — 편집에서 실제 호텔로 핀 옮기기. 전날 밤 프런트에 렘 롯폰기 택배 가능 여부·마감 확인' },
+    { time: '13:00', name: '후운지 신주쿠 본점 (츠케멘)', lat: 35.68689, lng: 139.69669, memo: '구글 4.3 · 타베로그 백명점 2025 · 11~15시/17~21시 · 카운터석', mode: 'walk' },
+    { time: '14:30', name: '세이부신주쿠역', lat: 35.69609, lng: 139.70004, memo: '특급 고에도 → 혼가와고에 약 45분', mode: 'walk' },
+    { time: '15:15', name: '혼가와고에역', lat: 35.91493, lng: 139.48217, mode: 'transit' },
+    { time: '15:30', name: '가와고에 마쓰리 · 도키노카네', lat: 35.9248, lng: 139.4842, memo: '~20:00 · 낮엔 창고거리 수레+군고구마, 해 지면 교차로 힛카와세. 식사는 노점으로. 장어 오가와키쿠 11~14시/16:30~19:30(축제날 영업 미확인). ⚠️인파 — 귀가는 20시 이후, 가와고에시역이 덜 붐빔. 대안: 신주쿠교엔+가구라자카', mode: 'walk' },
+    { time: '21:30', name: '오모이데요코초 · 기후야', lat: 35.69307, lng: 139.6995, memo: '마치추카 · 구글 4.0 · 새벽 1시까지 · 현금만. 꼬치+하이볼', mode: 'transit' },
+  ]},
+  { day: '10/18 일 · 후지산 → 료칸', stops: [
+    { time: '08:30', name: '신주쿠역 (특급 후지회유)', lat: 35.6900, lng: 139.7004, memo: '🎫지금 예약! 가와구치코 직통 1시간 53분 · 지정석 4,130엔 · 시모요시다 정차편 확인. 매진이면 바스타 신주쿠 고속버스. 큰 캐리어는 렘 롯폰기로 택배. 🧥경량 패딩 필수' },
+    { time: '10:30', name: '시모요시다역', lat: 35.49773, lng: 138.80353, mode: 'transit' },
+    { time: '10:45', name: '추레이토 (아라쿠라야마 센겐 공원)', lat: 35.50129, lng: 138.80136, memo: '398계단, 오층탑+후지산', mode: 'walk' },
+    { time: '11:30', name: '혼초 거리', lat: 35.493, lng: 138.80406, memo: '상점가 끝에 후지산 컷', mode: 'walk' },
+    { time: '11:45', name: '미우라 우동 (요시다 우동)', lat: 35.49456, lng: 138.80904, memo: '구글 3.9 · 10~14시 · 수요일 휴무 · 현금만 · 12시 전 도착. 닫았으면 가와구치코역 앞 호토', mode: 'walk' },
+    { time: '13:30', name: '가와구치코역', lat: 35.49834, lng: 138.76878, mode: 'transit' },
+    { time: '14:00', name: '오이시 공원 (코키아)', lat: 35.52329, lng: 138.74654, memo: '레드라인 버스 약 30분 · 코키아 단풍 10월 중~하순', mode: 'transit' },
+    { time: '16:30', name: '가와구치코역 (마루에이 픽업)', lat: 35.49834, lng: 138.76878, memo: '픽업 15~17시, 역 도착하면 전화', mode: 'transit' },
+    { time: '17:00', name: '마루에이 료칸', lat: 35.493, lng: 138.762, memo: '📍대략 위치 — 핀 옮기기. 가이세키 + 노천탕 후지노유(후지산은 여기서). 🎫저녁 시간·도착 시각 미리 연락', mode: 'car' },
+  ]},
+  { day: '10/19 월 · 아침 후지 → 롯폰기', stops: [
+    { time: '06:00', name: '마루에이 료칸', lat: 35.493, lng: 138.762, memo: '일출 온천 · 09:30 체크아웃 (역 송영 8~11시 30분 간격)' },
+    { time: '10:00', name: '가와구치코 로프웨이', lat: 35.5022, lng: 138.7695, memo: '호수+후지산 전망, 내려와서 호숫가 카페', mode: 'car' },
+    { time: '11:30', name: '호토 후도 가와구치코역앞점', lat: 35.49884, lng: 138.76862, memo: '구글 3.8 · 11~19시 · 현금만', mode: 'walk' },
+    { time: '14:30', name: '바스타 신주쿠', lat: 35.68852, lng: 139.70091, memo: '12:30 가와구치코역발 고속버스 약 2시간 · 오에도선 → 롯폰기', mode: 'transit' },
+    { time: '15:30', name: '렘 롯폰기 체크인', lat: 35.66381, lng: 139.73141, memo: '택배 캐리어 수령', mode: 'transit' },
+    { time: '17:00', name: '팀랩 보더리스 (아자부다이 힐스)', lat: 35.662, lng: 139.74342, memo: '🎫10/19 저녁 타임 예약', mode: 'walk' },
+    { time: '18:30', name: '도쿄타워 야경', lat: 35.65858, lng: 139.74543, mode: 'walk' },
+    { time: '19:00', name: '소혼케 사라시나 호리이 (소바)', lat: 35.65677, lng: 139.73288, memo: '구글 4.2 · 타베로그 3.78 · 평일 20:30 마감', mode: 'walk' },
+    { time: '20:30', name: '아베짱 (야키톤)', lat: 35.65454, lng: 139.73633, memo: '2차 · 구글 4.1 · 평일 22:30까지 · 워크인만', mode: 'walk' },
+  ]},
+  { day: '10/20 화 · 가마쿠라·에노시마', stops: [
+    { time: '08:30', name: '렘 롯폰기', lat: 35.66381, lng: 139.73141, memo: '히비야선 → 에비스 → 쇼난신주쿠라인 → 가마쿠라' },
+    { time: '10:00', name: '쓰루가오카 하치만구', lat: 35.32407, lng: 139.55534, mode: 'transit' },
+    { time: '11:00', name: '고마치도리', lat: 35.32316, lng: 139.55317, mode: 'walk' },
+    { time: '11:30', name: '옥시모론 고마치 (카레)', lat: 35.3215, lng: 139.5526, memo: '구글 4.3 · 11~15시 · 수요일 휴무. 시라스동 원하면 아키모토(가마쿠라역 3분, 백명점, 생시라스는 입하일만)', mode: 'walk' },
+    { time: '13:00', name: '고토쿠인 (가마쿠라 대불)', lat: 35.31684, lng: 139.53598, memo: '에노덴 → 하세', mode: 'transit' },
+    { time: '13:45', name: '하세데라', lat: 35.31227, lng: 139.53331, mode: 'walk' },
+    { time: '15:00', name: '가마쿠라코코마에 (슬램덩크 건널목)', lat: 35.3067, lng: 139.5002, memo: '차도에 내려가지 말 것', mode: 'transit' },
+    { time: '16:00', name: '에노시마 일몰', lat: 35.30011, lng: 139.48064, memo: '일몰 17시쯤, 맑으면 후지산 실루엣', mode: 'transit' },
+    { time: '19:30', name: 'AFURI 에비스 (유자 시오 라멘)', lat: 35.6481, lng: 139.7108, memo: '구글 4.3 · 새벽 5시까지 · 현금 불가', mode: 'transit' },
+    { time: '20:30', name: '에비스 요코초', lat: 35.64814, lng: 139.71066, memo: '마지막 밤', mode: 'walk' },
+    { time: '22:30', name: '렘 롯폰기', lat: 35.66381, lng: 139.73141, mode: 'transit' },
+  ]},
+  { day: '10/21 수 · 귀국', stops: [
+    { time: '07:30', name: '게야키자카 산책', lat: 35.65944, lng: 139.72789, memo: '커피 + 편의점 마지막 쇼핑' },
+    { time: '08:00', name: '브리콜라주 브레드 앤 코', lat: 35.65916, lng: 139.72828, memo: '구글 4.3 · 화~일 7~19시', mode: 'walk' },
+    { time: '09:10', name: '렘 롯폰기 체크아웃', lat: 35.66381, lng: 139.73141, memo: '오에도선 → 다이몬 → 게이큐 직통 약 40분', mode: 'walk' },
+    { time: '10:00', name: '하네다공항 3터미널', lat: 35.54503, lng: 139.76704, memo: '✈️ 12:05 출발', mode: 'transit' },
+  ]},
+];
+
+const h = (tag, props, ...kids) => { const e = Object.assign(document.createElement(tag), props); e.append(...kids); return e; };
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
+const round6 = n => Math.round(n * 1e6) / 1e6;
+
+const isValidPlan = p => Array.isArray(p) && p.length > 0 && p.every(d =>
+  typeof d.day === 'string' && Array.isArray(d.stops) &&
+  d.stops.every(s => typeof s.name === 'string' && Number.isFinite(s.lat) && Number.isFinite(s.lng)));
+
+function load() {
+  try { const p = JSON.parse(localStorage.getItem(STORE_KEY)); if (isValidPlan(p)) return p; } catch {}
+  return structuredClone(SAMPLE);
+}
+function save() {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(plan)); }
+  catch (e) { alert('저장 실패 — 내보내기로 백업하세요: ' + e.message); }
+}
+
+let plan = load(), dayIdx = 0, editing = false, drawToken = 0, markers = [];
+const routeCache = new Map();
+const stops = () => plan[dayIdx].stops;
+
+const map = L.map('map').setView([37.5665, 126.978], 12);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+  { maxZoom: 20, subdomains: 'abcd', attribution: '© OpenStreetMap © CARTO' }).addTo(map);
+const layer = L.layerGroup().addTo(map);
+const daysEl = document.getElementById('days'), panel = document.getElementById('panel'), editBtn = document.getElementById('editBtn');
+
+// ---------- 경로 ----------
+function fetchRoute(a, b, mode) {
+  const key = [mode, a.lat, a.lng, b.lat, b.lng].join();
+  if (!routeCache.has(key)) {
+    const url = `https://routing.openstreetmap.de/${OSRM[mode]}/route/v1/driving/${a.lng},${a.lat};${b.lng},${b.lat}?overview=full&geometries=geojson`;
+    routeCache.set(key, fetch(url)
+      .then(r => r.ok ? r.json() : Promise.reject(new Error(r.status)))
+      .then(j => j.routes?.[0] ?? Promise.reject(new Error('no route')))
+      .catch(e => { routeCache.delete(key); throw e; }));
+  }
+  return routeCache.get(key);
+}
+
+function draw(fit) {
+  const token = ++drawToken, list = stops();
+  layer.clearLayers();
+  markers = list.map((s, i) => L.marker([s.lat, s.lng], {
+      draggable: editing,
+      icon: L.divIcon({ className: '', html: `<div class="pin">${i + 1}</div>`, iconSize: [28, 28] }),
+    })
+    .bindPopup(`<b>${esc(s.time)} ${esc(s.name)}</b>${s.memo ? '<br>' + esc(s.memo) : ''}`)
+    .on('dragend', e => { const p = e.target.getLatLng(); s.lat = round6(p.lat); s.lng = round6(p.lng); commit(); })
+    .addTo(layer));
+
+  list.forEach((s, i) => {
+    if (i === 0) return;
+    const a = list[i - 1], mode = s.mode ?? 'transit';
+    const info = document.querySelector(`#leg${i} .info`);
+    const straight = style => L.polyline([[a.lat, a.lng], [s.lat, s.lng]], { weight: 4, dashArray: '8 8', ...style }).addTo(layer);
+    // ponytail: 대중교통 구간은 점선 직선 + 카카오/구글 길찾기 링크. 지도 위 실제 노선이 필요하면 ODsay(국내)/Google Directions(해외) API 키 필요
+    if (mode === 'transit') return straight({ color: COLORS.transit });
+    fetchRoute(a, s, mode).then(r => {
+      if (token !== drawToken) return;
+      L.geoJSON(r.geometry, { style: { color: COLORS[mode], weight: 5, opacity: 0.8 } }).addTo(layer);
+      if (info) info.textContent = `${Math.round(r.duration / 60)}분 · ${(r.distance / 1000).toFixed(1)}km`;
+    }).catch(() => {
+      if (token !== drawToken) return;
+      straight({ color: '#dc2626' });
+      if (info) info.textContent = '경로 계산 실패';
+    });
+  });
+  if (fit && list.length) map.fitBounds(list.map(s => [s.lat, s.lng]), { padding: [30, 30], maxZoom: 16 });
+}
+
+// ---------- 보기 화면 ----------
+function mapLinks(a, b, mode) {
+  const k = p => `${encodeURIComponent(p.name.replace(/[,/]/g, ' '))},${p.lat},${p.lng}`;
+  const inKorea = p => p.lat > 33 && p.lat < 38.7 && p.lng > 124.5 && p.lng < 132;
+  return [
+    inKorea(a) && inKorea(b) && h('a', { target: '_blank', href: `https://map.kakao.com/link/by/${KAKAO[mode]}/${k(a)}/${k(b)}` }, '카카오맵'),
+    h('a', { target: '_blank', href: `https://maps.apple.com/?saddr=${a.lat},${a.lng}&daddr=${b.lat},${b.lng}&dirflg=${APPLE[mode]}` }, '애플 지도'),
+  ].filter(Boolean);
+}
+
+function renderView() {
+  const list = stops();
+  panel.replaceChildren();
+  if (!list.length) return panel.append(h('p', { className: 'hint' }, '일정이 없어요. ✏️ 편집에서 장소를 추가하세요.'));
+  list.forEach((s, i) => {
+    if (i > 0) {
+      const mode = s.mode ?? 'transit';
+      panel.append(h('div', { className: 'leg', id: `leg${i}` }, `${MODES[mode]} `,
+        h('span', { className: 'info' }, mode === 'transit' ? '노선·시간·요금 →' : '계산 중…'),
+        ...mapLinks(list[i - 1], s, mode)));
+    }
+    panel.append(h('div', { className: 'stop', onclick: () => { map.flyTo([s.lat, s.lng], 16); markers[i].openPopup(); } },
+      h('span', { className: 'num' }, String(i + 1)),
+      h('div', {}, h('b', {}, `${s.time ?? ''} ${s.name}`), s.memo ? h('div', { className: 'memo' }, s.memo) : '')));
+  });
+}
+
+// ---------- 편집 화면 ----------
+function addStop(name, lat, lng) {
+  const list = stops();
+  list.push({ time: '', name, lat: round6(lat), lng: round6(lng), memo: '', ...(list.length && { mode: 'transit' }) });
+  commit();
+}
+
+async function search(q, out) {
+  if (!q.trim()) return;
+  out.replaceChildren('검색 중…');
+  try {
+    const c = map.getCenter();
+    const r = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=6&lat=${c.lat}&lon=${c.lng}`);
+    if (!r.ok) throw new Error(r.status);
+    const { features } = await r.json();
+    out.replaceChildren(...(features.length ? features.map(f => {
+      const p = f.properties, [lng, lat] = f.geometry.coordinates;
+      const label = [p.name, p.street, p.city ?? p.county, p.country].filter(Boolean).join(', ');
+      return h('button', { type: 'button', onclick: () => addStop(p.name ?? q, lat, lng) }, label);
+    }) : [h('span', { className: 'hint' }, '결과 없음 — 지도를 눌러 직접 추가하세요')]));
+  } catch (e) {
+    out.replaceChildren(h('span', { className: 'hint' }, `검색 실패(${e.message}) — 지도를 눌러 직접 추가하세요`));
+  }
+}
+
+function field(s, name, props) {
+  return h('input', { name, value: s[name] ?? '', ...props, onchange: e => { s[name] = e.target.value; save(); draw(false); } });
+}
+
+function stopRow(s, i, list) {
+  const move = d => () => { [list[i], list[i + d]] = [list[i + d], list[i]]; commit(); };
+  return h('div', { className: 'row' },
+    i > 0 ? h('select', { onchange: e => { s.mode = e.target.value; save(); draw(false); } },
+      ...Object.entries(MODES).map(([v, t]) => h('option', { value: v, selected: (s.mode ?? 'transit') === v }, t))) : '',
+    h('span', { className: 'num' }, String(i + 1)),
+    field(s, 'time', { type: 'time' }),
+    field(s, 'name', { placeholder: '장소 이름' }),
+    h('button', { disabled: i === 0, onclick: move(-1), title: '위로' }, '↑'),
+    h('button', { disabled: i === list.length - 1, onclick: move(1), title: '아래로' }, '↓'),
+    h('button', { title: '삭제', onclick: () => { list.splice(i, 1); commit(); } }, '✕'),
+    field(s, 'memo', { placeholder: '메모' }));
+}
+
+function renderEdit() {
+  const day = plan[dayIdx], results = h('div', { id: 'results' });
+  const q = h('input', { type: 'search', placeholder: '장소 검색 (일본은 영어로: Tokyo Tower)',
+    onkeydown: e => e.key === 'Enter' && search(q.value, results) });
+  const fileIn = h('input', { type: 'file', accept: '.json,application/json', hidden: true, onchange: importPlan });
+
+  panel.replaceChildren(
+    h('div', { className: 'bar' },
+      h('input', { value: day.day, placeholder: '날짜 이름', onchange: e => { day.day = e.target.value; commit(); } }),
+      h('button', { onclick: () => { plan.push({ day: `${plan.length + 1}일차`, stops: [] }); dayIdx = plan.length - 1; commit(true); } }, '＋ 날짜'),
+      h('button', { disabled: plan.length === 1, onclick: () => {
+        if (!confirm(`'${day.day}' 일정을 삭제할까요?`)) return;
+        plan.splice(dayIdx, 1); dayIdx = Math.max(0, dayIdx - 1); commit(true);
+      } }, '날짜 삭제')),
+    h('div', { className: 'bar' }, q, h('button', { onclick: () => search(q.value, results) }, '검색')),
+    results,
+    h('p', { className: 'hint' }, '지도를 누르면 그 위치에 장소 추가 · 핀은 드래그해서 옮길 수 있어요'),
+    ...stops().map((s, i, list) => stopRow(s, i, list)),
+    h('div', { className: 'bar' },
+      h('button', { onclick: exportPlan }, '⬇ 내보내기'),
+      h('button', { onclick: () => fileIn.click() }, '⬆ 가져오기'), fileIn));
+}
+
+function exportPlan() {
+  const url = URL.createObjectURL(new Blob([JSON.stringify(plan, null, 2)], { type: 'application/json' }));
+  h('a', { href: url, download: 'travel-plan.json' }).click();
+  URL.revokeObjectURL(url);
+}
+
+async function importPlan(e) {
+  try {
+    const p = JSON.parse(await e.target.files[0].text());
+    if (!isValidPlan(p)) throw new Error('형식이 맞지 않아요');
+    if (!confirm('현재 일정을 가져온 파일로 바꿀까요?')) return;
+    plan = p; dayIdx = 0; commit(true);
+  } catch (err) { alert('가져오기 실패: ' + err.message); }
+}
+
+// ---------- 공통 ----------
+function renderDays() {
+  daysEl.replaceChildren(...plan.map((d, i) =>
+    h('button', { className: i === dayIdx ? 'on' : '', onclick: () => { dayIdx = i; render(true); } }, d.day)));
+}
+function render(fit) {
+  renderDays();
+  editing ? renderEdit() : renderView();
+  draw(fit);
+}
+function commit(fit = false) { save(); render(fit); }
+
+map.on('click', e => { if (editing) addStop('새 장소', e.latlng.lat, e.latlng.lng); });
+editBtn.onclick = () => { editing = !editing; editBtn.textContent = editing ? '✅ 완료' : '✏️ 편집'; editBtn.classList.toggle('on', editing); render(false); };
+render(true);
+</script>
+</body>
+</html>
