@@ -38,7 +38,7 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
-const STORE_KEY = 'travel-plan-tokyo-2026-10-v2';
+const STORE_KEY = 'travel-plan-tokyo-2026-10-v3';
 const MODES = { transit: '🚇 대중교통', walk: '🚶 도보', car: '🚗 자동차' };
 const OSRM = { walk: 'routed-foot', car: 'routed-car' };
 const KAKAO = { transit: 'traffic', walk: 'walk', car: 'car' };
@@ -73,10 +73,10 @@ const SAMPLE = [
     { time: '11:30', name: '호토 후도 가와구치코역앞점', lat: 35.49884, lng: 138.76862, memo: '구글 3.8 · 11~19시 · 현금만', mode: 'walk' },
     { time: '14:30', name: '바스타 신주쿠', lat: 35.68852, lng: 139.70091, memo: '12:30 가와구치코역발 고속버스 약 2시간 · 오에도선 → 롯폰기', mode: 'transit' },
     { time: '15:30', name: '렘 롯폰기 체크인', lat: 35.66381, lng: 139.73141, memo: '택배 캐리어 수령', mode: 'transit' },
-    { time: '17:00', name: '팀랩 보더리스 (아자부다이 힐스)', lat: 35.662, lng: 139.74342, memo: '🎫10/19 저녁 타임 예약', mode: 'walk' },
-    { time: '18:30', name: '도쿄타워 야경', lat: 35.65858, lng: 139.74543, mode: 'walk' },
-    { time: '19:00', name: '소혼케 사라시나 호리이 (소바)', lat: 35.65677, lng: 139.73288, memo: '구글 4.2 · 타베로그 3.78 · 평일 20:30 마감', mode: 'walk' },
-    { time: '20:30', name: '아베짱 (야키톤)', lat: 35.65454, lng: 139.73633, memo: '2차 · 구글 4.1 · 평일 22:30까지 · 워크인만', mode: 'walk' },
+    { time: '16:00', name: '츠지한 아크 힐스점 (제이타쿠동)', lat: 35.668, lng: 139.7395, memo: '아크 모리 빌딩 3층 · 구글 4.5 · 평일 11:00~21:30 브레이크 없음 · 피크 대기 1시간 안팎이라 16시 추천', mode: 'walk' },
+    { time: '17:30', name: '팀랩 보더리스 (아자부다이 힐스)', lat: 35.662, lng: 139.74342, memo: '🎫10/19 17:30 타임으로 예약', mode: 'walk' },
+    { time: '19:30', name: '도쿄타워 야경 산책', lat: 35.65858, lng: 139.74543, mode: 'walk' },
+    { time: '20:30', name: '아베짱 (야키톤)', lat: 35.65454, lng: 139.73633, memo: '가볍게 2차 · 구글 4.1 · 평일 22:30까지 · 워크인만', mode: 'walk' },
   ]},
   { day: '10/20 화 · 가마쿠라·에노시마', stops: [
     { time: '08:30', name: '렘 롯폰기', lat: 35.66381, lng: 139.73141, memo: '히비야선 → 에비스 → 쇼난신주쿠라인 → 가마쿠라' },
