@@ -38,7 +38,7 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
-const STORE_KEY = 'travel-plan-tokyo-2026-10';
+const STORE_KEY = 'travel-plan-tokyo-2026-10-v2';
 const MODES = { transit: '🚇 대중교통', walk: '🚶 도보', car: '🚗 자동차' };
 const OSRM = { walk: 'routed-foot', car: 'routed-car' };
 const KAKAO = { transit: 'traffic', walk: 'walk', car: 'car' };
@@ -46,14 +46,15 @@ const APPLE = { transit: 'r', walk: 'w', car: 'd' };
 const COLORS = { transit: '#16a34a', walk: '#ea580c', car: '#2563eb' };
 // mode = 이전 장소에서 이 장소로 오는 이동수단
 const SAMPLE = [
-  { day: '10/17 토 · 신주쿠·가와고에', stops: [
+  { day: '10/17 토 · 신주쿠 도보', stops: [
     { time: '10:45', name: '하네다공항 3터미널', lat: 35.54503, lng: 139.76704, memo: '게이큐선 → 시나가와 → 야마노테선 → 신주쿠' },
-    { time: '12:30', name: '신주쿠 호텔 (짐 맡기기)', lat: 35.6945, lng: 139.6995, memo: '📍대략 위치 — 편집에서 실제 호텔로 핀 옮기기. 전날 밤 프런트에 렘 롯폰기 택배 가능 여부·마감 확인' },
+    { time: '12:30', name: '신주쿠 호텔 (짐 맡기기)', lat: 35.6945, lng: 139.6995, memo: '📍대략 위치 — 편집에서 실제 호텔로 핀 옮기기. 다음날 렘 롯폰기 택배 가능 여부·마감 프런트에 확인', mode: 'transit' },
     { time: '13:00', name: '후운지 신주쿠 본점 (츠케멘)', lat: 35.68689, lng: 139.69669, memo: '구글 4.3 · 타베로그 백명점 2025 · 11~15시/17~21시 · 카운터석', mode: 'walk' },
-    { time: '14:30', name: '세이부신주쿠역', lat: 35.69609, lng: 139.70004, memo: '특급 고에도 → 혼가와고에 약 45분', mode: 'walk' },
-    { time: '15:15', name: '혼가와고에역', lat: 35.91493, lng: 139.48217, mode: 'transit' },
-    { time: '15:30', name: '가와고에 마쓰리 · 도키노카네', lat: 35.9248, lng: 139.4842, memo: '~20:00 · 낮엔 창고거리 수레+군고구마, 해 지면 교차로 힛카와세. 식사는 노점으로. 장어 오가와키쿠 11~14시/16:30~19:30(축제날 영업 미확인). ⚠️인파 — 귀가는 20시 이후, 가와고에시역이 덜 붐빔. 대안: 신주쿠교엔+가구라자카', mode: 'walk' },
-    { time: '21:30', name: '오모이데요코초 · 기후야', lat: 35.69307, lng: 139.6995, memo: '마치추카 · 구글 4.0 · 새벽 1시까지 · 현금만. 꼬치+하이볼', mode: 'transit' },
+    { time: '14:00', name: '신주쿠 교엔', lat: 35.6852, lng: 139.7101, memo: '10월 16시 입장 마감, 16:30 폐원 · 500엔. 잔디밭 휴식 + 일본 정원 + 가을 장미 화단', mode: 'walk' },
+    { time: '16:30', name: '도쿄도청 전망대', lat: 35.6896, lng: 139.6917, memo: '지상 202m · 무료 · 노을→야경, 맑으면 후지산 실루엣. 운영 시간은 당일 공식 사이트 확인', mode: 'walk' },
+    { time: '18:00', name: '도청 프로젝션 매핑', lat: 35.6891, lng: 139.6924, memo: '도청 앞 광장 · 일몰 후~21:30쯤 여러 번 상영 · 무료, 예약 불필요', mode: 'walk' },
+    { time: '18:30', name: '호텔 체크인 · 휴식', lat: 35.6945, lng: 139.6995, memo: '도청에서 도보 10분', mode: 'walk' },
+    { time: '19:30', name: '오모이데요코초 · 기후야', lat: 35.69307, lng: 139.6995, memo: '교자 + 병맥주 · 새벽 1시까지 · 현금만', mode: 'walk' },
   ]},
   { day: '10/18 일 · 후지산 → 료칸', stops: [
     { time: '08:30', name: '신주쿠역 (특급 후지회유)', lat: 35.6900, lng: 139.7004, memo: '🎫지금 예약! 가와구치코 직통 1시간 53분 · 지정석 4,130엔 · 시모요시다 정차편 확인. 매진이면 바스타 신주쿠 고속버스. 큰 캐리어는 렘 롯폰기로 택배. 🧥경량 패딩 필수' },
